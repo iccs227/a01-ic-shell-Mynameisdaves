@@ -37,20 +37,19 @@
          strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
          return;
      }
- 
      if (strstr(buffer, "exit ") == buffer) {
          char *newbuf = malloc(strlen(buffer) + 1);
          if (!newbuf) {
              perror("malloc failed");
              return;
          }
- 
+         //Citation: https://stackoverflow.com/questions/5881328/how-do-i-truncate-a-java-integer-to-fit-exand-to-a-given-number-of-bytes
          strncpy(newbuf, &buffer[5], strlen(buffer) - 1);
          newbuf[strlen(buffer) - 1] = '\0';
          int result = atoi(newbuf);
          free(newbuf);
          if (result < 0 || result > 255){
-            result = 0;
+            result = result & 0xFF;
          }
          printf("Exit code: %d\n", result);
          printf("Bye\n");
