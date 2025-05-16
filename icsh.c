@@ -37,6 +37,12 @@
          strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
          return;
      }
+     
+     if (strstr(buffer, '.') != NULL) {
+        buffer[strcspn(buffer, "\n")] = '\0';
+        FILE *fptr = fopen(buffer, "r");
+     }
+
      if (strstr(buffer, "exit ") == buffer) {
          char *newbuf = malloc(strlen(buffer) + 1);
          if (!newbuf) {
