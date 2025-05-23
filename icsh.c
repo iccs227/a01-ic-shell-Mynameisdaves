@@ -9,17 +9,6 @@
  
  #define MAX_CMD_BUFFER 255
  
- void helper(char *buffer) {
-     char *newbuf = malloc(strlen(buffer) - 5 + 1);
-     if (!newbuf) {
-        return;
-     }
-     strncpy(newbuf, &buffer[5], strlen(buffer) - 5);
-     newbuf[strlen(buffer) - 5] = '\0';
-     printf("%s\n", newbuf);
-     free(newbuf);
- }
- 
  void actions(char *buffer, char *oldbuffer) {
      buffer[strcspn(buffer, "\n")] = '\0';
      if (strcmp(buffer, "!!") == 0) {
@@ -33,7 +22,14 @@
      }
  
      if (strstr(buffer, "echo ") == buffer) {
-         helper(buffer);
+         char *newbuf = malloc(strlen(buffer) - 5 + 1);
+         if (!newbuf) {
+            return;
+         }
+         strncpy(newbuf, &buffer[5], strlen(buffer) - 5);
+         newbuf[strlen(buffer) - 5] = '\0';
+         printf("%s\n", newbuf);
+         free(newbuf);
          strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
          return;
      }
@@ -71,6 +67,15 @@
          printf("Exit code: %d\n", result);
          printf("Bye\n");
          exit(result);
+     }
+     int status;
+     int pid;
+
+     if(fork() == 0){ 
+        status = system(buffer);
+        exit(0);
+     }else{
+        waitpid (pid, NULL, 0);
      }
  
      strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
