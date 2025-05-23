@@ -77,9 +77,11 @@
 
      if(fork() == 0){ 
         status = system(buffer);
+        printf("icsh $ ");
         exit(0);
      }else{
         waitpid (pid, NULL, 0);
+        
      }
  
      strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
