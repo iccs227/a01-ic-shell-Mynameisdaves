@@ -6,6 +6,7 @@
  #include <stdio.h>
  #include <string.h>
  #include <unistd.h>
+ #include <sys/wait.h>
  #include <stdlib.h>
  
  #define MAX_CMD_BUFFER 255
