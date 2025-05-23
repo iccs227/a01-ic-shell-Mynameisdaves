@@ -71,17 +71,28 @@
          exit(result);
      }
 
-     //Citation: https://stackoverflow.com/questions/5237482/how-do-i-execute-an-external-program-within-c-code-in-linux-with-arguments
+     //Citation: https://stackoverflow.com/questions/5237482/how-do-i-execute-an-external-program-within-c-code-in-linux-with-arguments 
+     //Citation: https://chatgpt.com/c/68302f25-4d0c-8001-babd-a44db93f01ee
+     //Citation for process creation: https://iies.in/blog/understanding-fork-exec-and-process-creation-in-linux/
      int status;
-     int pid;
+     pid_t pid = fork();
 
-     if(fork() == 0){ 
-        status = system(buffer);
-        printf("icsh $ ");
-        exit(0);
+     char delimiter[] = " ";
+     char* token;
+     char* tokens[64]; 
+     int i = 0;
+     token = strtok(buffer, delimiter);
+
+     while (token != NULL && i < 63) {
+        tokens[i++] = token;
+        token = strtok(NULL, delimiter);
+     }
+     if(pid == 0){ 
+        execvp(tokens[0], tokens);
+        perror("execvp failed");
+        exit(1);
      }else{
-        waitpid (pid, NULL, 0);
-        
+         waitpid(pid, &status, WUNTRACED);''
      }
  
      strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
