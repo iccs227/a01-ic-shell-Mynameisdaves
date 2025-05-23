@@ -50,12 +50,7 @@
         char line[256];
         while (fgets(line, sizeof(line), f)) {
             printf("%s", line);
-            //Citation: https://stackoverflow.com/a/28971647 
-            FILE *cmd = popen(line, "r");
-            char out[256];
-            while (fgets(out, sizeof(out), cmd)) {
-                printf("%s", out); 
-            }
+            actions(line, oldbuffer);
         }
      }
 
