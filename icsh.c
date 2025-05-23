@@ -10,6 +10,32 @@
  #include <stdlib.h>
  
  #define MAX_CMD_BUFFER 255
+
+ void handle1(int signum) {
+    //Will figure out what to write here
+ }
+ 
+ void handle2(int signum) {
+     //Will figure out what to write here
+ }
+ 
+ // Citation: https://stackoverflow.com/a/40116030/17123296
+ // Citation: https://pubs.opengroup.org/onlinepubs/007904875/functions/sigaction.html 
+ void sigtstp_set(void) {
+     struct sigaction sa;
+     sa.sa_handler = handle1;
+     sa.sa_flags = SA_RESTART;
+     sigemptyset(&sa.sa_mask);
+     sigaction(SIGTSTP, &sa, NULL);
+ }
+ 
+ void sigint_set(void) {
+     struct sigaction sa;
+     sa.sa_handler = handle2;
+     sa.sa_flags = SA_RESTART;
+     sigemptyset(&sa.sa_mask);
+     sigaction(SIGINT, &sa, NULL);
+ }
  
  void actions(char *buffer, char *oldbuffer) {
      buffer[strcspn(buffer, "\n")] = '\0';
@@ -91,6 +117,7 @@
      //Citation: https://github.com/wenshuailu/shell_with_history/blob/master/shell.c (Lines 460 onwards)
      if (pid < 0) return;
      if(pid == 0){ 
+        //Added error handling: https://chatgpt.com/share/6830639d-e504-8001-b61f-1e5366b0533e 
         execvp(tokens[0], tokens);
         perror("execvp failed");
         exit(1);
@@ -105,6 +132,9 @@
      char buffer[MAX_CMD_BUFFER];
      char oldbuffer[MAX_CMD_BUFFER];
      oldbuffer[0] = '\0';
+     
+     sigint_set();
+     sigtstp_set();
  
      while (1) {
          printf("icsh $ ");
