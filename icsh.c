@@ -76,23 +76,26 @@
      //Citation for process creation: https://iies.in/blog/understanding-fork-exec-and-process-creation-in-linux/
      int status;
      pid_t pid = fork();
-
      char delimiter[] = " ";
      char* token;
      char* tokens[64]; 
      int i = 0;
+
      token = strtok(buffer, delimiter);
 
      while (token != NULL && i < 63) {
         tokens[i++] = token;
         token = strtok(NULL, delimiter);
      }
+     tokens[i] = NULL;
+     //Citation: https://github.com/wenshuailu/shell_with_history/blob/master/shell.c (Lines 460 onwards)
+     if (pid < 0) return;
      if(pid == 0){ 
         execvp(tokens[0], tokens);
         perror("execvp failed");
         exit(1);
      }else{
-         waitpid(pid, &status, WUNTRACED);''
+        waitpid (pid, NULL, 0);
      }
  
      strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
