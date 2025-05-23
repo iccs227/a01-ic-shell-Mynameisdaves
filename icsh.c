@@ -38,9 +38,25 @@
          return;
      }
      
-     if (strstr(buffer, '.') != NULL) {
+     if (strstr(buffer, ".") != NULL) {
         buffer[strcspn(buffer, "\n")] = '\0';
-        FILE *fptr = fopen(buffer, "r");
+        //Citation: https://www.w3schools.com/c/c_files.php
+        FILE *f = fopen(buffer, "r");
+        if (f == NULL) {
+            printf("file error");
+            return;
+        }
+        //Citation: https://stackoverflow.com/questions/9206091/going-through-a-text-file-line-by-line-in-c
+        char line[256];
+        while (fgets(line, sizeof(line), f)) {
+            printf("%s", line);
+            //Citation: https://stackoverflow.com/a/28971647 
+            FILE *cmd = popen(line, "r");
+            char out[256];
+            while (fgets(out, sizeof(out), cmd)) {
+                printf("%s", out); 
+            }
+        }
      }
 
      if (strstr(buffer, "exit ") == buffer) {
