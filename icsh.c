@@ -5,6 +5,7 @@
 
  #include <stdio.h>
  #include <string.h>
+ #include <unistd.h>
  #include <stdlib.h>
  
  #define MAX_CMD_BUFFER 255
@@ -68,6 +69,8 @@
          printf("Bye\n");
          exit(result);
      }
+
+     //Citation: https://stackoverflow.com/questions/5237482/how-do-i-execute-an-external-program-within-c-code-in-linux-with-arguments
      int status;
      int pid;
 
