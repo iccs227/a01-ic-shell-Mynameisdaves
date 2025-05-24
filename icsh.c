@@ -66,15 +66,15 @@
      if (strstr(buffer, ">") != NULL){
         int i = 0;
         char delimiter[] = ">";
-        char* tokens[64]; 
+        char* tokens[2]; 
         char* token1;
         token1 = strtok(buffer, delimiter);
-        while (token1 != NULL && i < 63) {
+        while (token1 != NULL && i < 2) {
             tokens[i++] = token1;
             token1 = strtok(NULL, delimiter);
         }
         tokens[i] = NULL;
-        int j = 0;
+
         //Citation: https://www.geeksforgeeks.org/dup-dup2-linux-system-call/
         //Citation: https://www.reddit.com/r/learnprogramming/comments/4it2s3/would_someone_please_explainhelp_me_understand/
         int saved_stdout = dup(1);
@@ -88,6 +88,53 @@
         close(file_desc);
         return;
      }
+     if (strstr(buffer, ">") != NULL){
+        int i = 0;
+        char delimiter[] = ">";
+        char* tokens[2]; 
+        char* token1;
+        token1 = strtok(buffer, delimiter);
+        while (token1 != NULL && i < 2) {
+            tokens[i++] = token1;
+            token1 = strtok(NULL, delimiter);
+        }
+
+        //Citation: https://www.geeksforgeeks.org/dup-dup2-linux-system-call/
+        //Citation: https://www.reddit.com/r/learnprogramming/comments/4it2s3/would_someone_please_explainhelp_me_understand/
+        int saved_stdout = dup(1);
+        int file_desc = open(tokens[1], O_APPEND | O_CREAT | O_WRONLY, 0666);
+        dup2(file_desc, 1);
+        actions(tokens[0], buffer);
+        fflush(stdout);
+        //Citation: https://stackoverflow.com/questions/73533223/how-to-restore-stdout-after-using-dup2-to-capture-stdout-to-file
+        dup2(saved_stdout, 1);
+        close(saved_stdout);
+        close(file_desc);
+        return;
+     }
+     if (strstr(buffer, "<") != NULL) {
+        int i = 0;
+        char delimiter[] = "<";
+        char *tokens[2];
+        char *token1;
+        token1 = strtok(buffer, delimiter);
+        while (token1 != NULL && i < 2) {
+            tokens[i++] = token1;
+            token1 = strtok(NULL, delimiter);
+        }
+        char *cmd = tokens[0];
+        char *filename = tokens[1];
+        int saved_stdout = dup(0); 
+        int file_desc = open(filename, O_RDONLY); 
+
+        dup2(file_desc, 0); 
+        close(file_desc);
+        actions(cmd, buffer); 
+        dup2(saved_stdout, 0); 
+        close(saved_stdout);
+        return;
+     }
+
      
      if (strstr(buffer, ".") != NULL) {
         buffer[strcspn(buffer, "\n")] = '\0';
