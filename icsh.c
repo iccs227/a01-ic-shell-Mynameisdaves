@@ -124,7 +124,8 @@
         perror("execvp failed");
         exit(1);
      }else{
-        waitpid (pid, NULL, 0);
+        //Citation for WUNTRACED: https://stackoverflow.com/questions/33508997/waitpid-wnohang-wuntraced-how-do-i-use-these
+        waitpid(pid, NULL, WUNTRACED);
      }
  
      strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
