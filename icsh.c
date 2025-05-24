@@ -77,10 +77,16 @@
         int j = 0;
         //Citation: https://www.geeksforgeeks.org/dup-dup2-linux-system-call/
         //Citation: https://www.reddit.com/r/learnprogramming/comments/4it2s3/would_someone_please_explainhelp_me_understand/
-        int file_desc = open(tokens[1], O_TRUNC | O_CREAT | O_WRONLY, 0644);
+        int saved_stdout = dup(1);
+        int file_desc = open(tokens[1], O_APPEND | O_CREAT | O_WRONLY, 0666);
         dup2(file_desc, 1);
-        actions(tokens[0], buffer); 
+        actions(tokens[0], buffer);
+        fflush(stdout);
+        //Citation: https://stackoverflow.com/questions/73533223/how-to-restore-stdout-after-using-dup2-to-capture-stdout-to-file
+        dup2(saved_stdout, 1);
+        close(saved_stdout);
         close(file_desc);
+        return;
      }
      
      if (strstr(buffer, ".") != NULL) {

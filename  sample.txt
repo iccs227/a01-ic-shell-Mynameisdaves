@@ -1,31 +1,14 @@
  sample.txt
+ sample1.txt
 Makefile
 README.md
 icsh
 icsh.c
 start.sh
  sample.txt
+ sample1.txt
 Makefile
 README.md
 icsh
 icsh.c
 start.sh
-icsh $ hi
-icsh $ 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Bye

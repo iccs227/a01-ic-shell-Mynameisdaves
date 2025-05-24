@@ -1,0 +1,26 @@
+total 28
+-rwxrwxrwx 1 ddd ddd    65 May 24 17:27  sample.txt
+-rwxrwxrwx 1 ddd ddd     0 May 24 17:36  sample1.txt
+drwxrwxrwx 1 ddd ddd   512 May 24 17:35 .
+drwxrwxrwx 1 ddd ddd   512 May 24 12:44 ..
+drwxrwxrwx 1 ddd ddd   512 May 24 11:56 .git
+-rwxrwxrwx 1 ddd ddd    15 Apr 28 23:03 .gitignore
+drwxrwxrwx 1 ddd ddd   512 Apr 30 11:34 .vscode
+-rwxrwxrwx 1 ddd ddd   147 Apr 28 23:03 Makefile
+-rwxrwxrwx 1 ddd ddd   274 Apr 28 23:03 README.md
+-rwxrwxrwx 1 ddd ddd 17360 May 24 17:35 icsh
+-rwxrwxrwx 1 ddd ddd  5746 May 24 17:26 icsh.c
+-rwxrwxrwx 1 ddd ddd    38 Apr 29 22:50 start.sh
+total 29
+-rwxrwxrwx 1 ddd ddd    65 May 24 17:27  sample.txt
+-rwxrwxrwx 1 ddd ddd   583 May 24 17:36  sample1.txt
+drwxrwxrwx 1 ddd ddd   512 May 24 17:38 .
+drwxrwxrwx 1 ddd ddd   512 May 24 12:44 ..
+drwxrwxrwx 1 ddd ddd   512 May 24 11:56 .git
+-rwxrwxrwx 1 ddd ddd    15 Apr 28 23:03 .gitignore
+drwxrwxrwx 1 ddd ddd   512 Apr 30 11:34 .vscode
+-rwxrwxrwx 1 ddd ddd   147 Apr 28 23:03 Makefile
+-rwxrwxrwx 1 ddd ddd   274 Apr 28 23:03 README.md
+-rwxrwxrwx 1 ddd ddd 17360 May 24 17:38 icsh
+-rwxrwxrwx 1 ddd ddd  5747 May 24 17:38 icsh.c
+-rwxrwxrwx 1 ddd ddd    38 Apr 29 22:50 start.sh
