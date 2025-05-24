@@ -8,6 +8,8 @@
  #include <unistd.h>
  #include <sys/wait.h>
  #include <stdlib.h>
+ #include <fcntl.h> 
+ #include <unistd.h>
  
  #define MAX_CMD_BUFFER 255
 
@@ -61,6 +63,25 @@
          strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
          return;
      }
+     if (strstr(buffer, ">") != NULL){
+        int i = 0;
+        char delimiter[] = ">";
+        char* tokens[64]; 
+        char* token1;
+        token1 = strtok(buffer, delimiter);
+        while (token1 != NULL && i < 63) {
+            tokens[i++] = token1;
+            token1 = strtok(NULL, delimiter);
+        }
+        tokens[i] = NULL;
+        int j = 0;
+        //Citation: https://www.geeksforgeeks.org/dup-dup2-linux-system-call/
+        //Citation: https://www.reddit.com/r/learnprogramming/comments/4it2s3/would_someone_please_explainhelp_me_understand/
+        int file_desc = open(tokens[1], O_TRUNC | O_CREAT | O_WRONLY, 0644);
+        dup2(file_desc, 1);
+        actions(tokens[0], buffer); 
+        close(file_desc);
+     }
      
      if (strstr(buffer, ".") != NULL) {
         buffer[strcspn(buffer, "\n")] = '\0';
@@ -96,6 +117,7 @@
          printf("Bye\n");
          exit(result);
      }
+     
 
      //Citation: https://stackoverflow.com/questions/5237482/how-do-i-execute-an-external-program-within-c-code-in-linux-with-arguments 
      //Citation: https://chatgpt.com/c/68302f25-4d0c-8001-babd-a44db93f01ee
@@ -123,7 +145,7 @@
         execvp(tokens[0], tokens);
         perror("execvp failed");
         exit(1);
-     }else{
+     } else {
         //Citation for WUNTRACED: https://stackoverflow.com/questions/33508997/waitpid-wnohang-wuntraced-how-do-i-use-these
         waitpid(pid, NULL, WUNTRACED);
      }
@@ -142,12 +164,12 @@
      while (1) {
          printf("icsh $ ");
          fflush(stdout);
- 
+
          if (fgets(buffer, MAX_CMD_BUFFER, stdin) == NULL) {
              printf("\nBye\n");
              break;
          }
- 
+
          actions(buffer, oldbuffer);
      }
  
