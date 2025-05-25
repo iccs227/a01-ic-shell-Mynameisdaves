@@ -14,6 +14,13 @@
 #define MAX_CMD_BUFFER 255
 
 pid_t foreground_pid = -1; 
+struct job_t {              
+    pid_t pid;              
+    int jid;                
+    int state;              
+    char cmdline[255];
+};
+struct job_t job_list[MAXJOBS]; /* The job list */
 
 void handle1(int signum) {
     printf("\n");
@@ -138,7 +145,6 @@ void actions(char *buffer, char *oldbuffer) {
     tokens[i] = NULL;
 
     if (pid < 0) return;
-
     if (pid == 0) {
         execvp(tokens[0], tokens);
         perror("execvp failed");
