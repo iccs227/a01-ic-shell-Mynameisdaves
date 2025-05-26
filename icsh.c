@@ -12,22 +12,73 @@
 #include <signal.h>
 
 #define MAX_CMD_BUFFER 255
+#define CMDLINE_LEN 255
 
+//Citations: https://github.com/yichuns/Shell-Lab/blob/master/tsh.c 
 pid_t foreground_pid = -1; 
-struct job_t {              
-    pid_t pid;              
-    int jid;                
-    int state;              
-    char cmdline[255];
+struct job_t {
+    pid_t pid;
+    int jid;
+    int state;
+    char cmdline[CMDLINE_LEN];
+    struct job_t *next;  
 };
-struct job_t job_list[MAXJOBS]; /* The job list */
+
+struct job_t *start = NULL;
+int jid1 = 1;
+
+//Citations: https://github.com/yichuns/Shell-Lab/blob/master/tsh.c 
+void add_job(pid_t pid, int state, const char *cmdline) {
+    struct job_t *jobb = malloc(sizeof(struct job_t));
+    if (!jobb) {
+        printf("cant");
+        return;
+    }
+
+    jobb->pid = pid;
+    jobb->jid = jid1++;
+    jobb->state = state;
+    int len = strlen(cmdline);
+    char command[CMDLINE_LEN];
+    if (len > 0) {
+        if (len >= CMDLINE_LEN) len = CMDLINE_LEN - 1;
+        strncpy(command, cmdline, len - 1);           
+    }   
+    strncpy(new_job->cmdline, command, CMDLINE_LEN - 1);
+    jobb->next = start;
+    start = jobb;
+
+    printf("[%d+] running in background           %s \n", new_job->jid, new_job->cmdline);
+}
+
+void list_jobs() {
+    struct job_t *curr = start;
+    while (curr) {
+        if (curr->next == NULL) {
+            printf("[%d]  +     running in background           %s \n", curr->jid, curr->cmdline);
+            curr = curr->next;
+        }
+        else if (curr->next->next == NULL) {
+            printf("[%d]  -     running in background           %s \n", curr->jid, curr->cmdline);
+            curr = curr->next;
+        }
+        else {
+            printf("[%d]        running in background           %s \n", curr->jid, curr->cmdline);
+            curr = curr->next;
+        }
+    }
+}
+
+
 
 void handle1(int signum) {
     printf("\n");
+    printf("icsh $ ");
  }
  
  void handle2(int signum) {
     printf("\n");
+    printf("icsh $ ");
  }
 
 void sigtstp_set(void) {
@@ -66,6 +117,11 @@ void actions(char *buffer, char *oldbuffer) {
         printf("%s\n", newbuf);
         free(newbuf);
         strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
+        return;
+    }
+
+    if (strstr(buffer, "jobs") == buffer) {
+        list_jobs();
         return;
     }
 
@@ -129,31 +185,45 @@ void actions(char *buffer, char *oldbuffer) {
         printf("Bye\n");
         exit(result);
     }
-
+    char tempbuffer[CMDLINE_LEN];
+    strncpy(tempbuffer, buffer, CMDLINE_LEN - 1);
     int status;
     pid_t pid = fork();
     char delimiter[] = " ";
     char *token;
     char *tokens[64];
     int i = 0;
+    int background_pid = 0;
 
     token = strtok(buffer, delimiter);
     while (token != NULL && i < 63) {
-        tokens[i++] = token;
+        if (strcmp(token, "&") == 0) {
+            background_pid = 1;  
+        } else {
+            tokens[i++] = token;  
+        }
         token = strtok(NULL, delimiter);
     }
-    tokens[i] = NULL;
+    tokens[i] = NULL;  
 
-    if (pid < 0) return;
+    if (pid < 0) {
+        perror("fork failed");
+        return;
+    }
+
     if (pid == 0) {
         execvp(tokens[0], tokens);
         perror("execvp failed");
         exit(1);
     } else {
-        foreground_pid = pid;
-        waitpid(pid, &status, WUNTRACED);
-        foreground_pid = -1;
+        if (!background_pid) {
+            waitpid(pid, &status, WUNTRACED);
+        } else {
+            printf("Started background job with PID %d\n", pid);
+            add_job(pid, 1, tempbuffer);
+        }
     }
+
 
     strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
 }
