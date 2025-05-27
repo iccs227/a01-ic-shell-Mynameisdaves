@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <errno.h> 
 
 #define MAX_CMD_BUFFER 255
 #define CMDLINE_LEN 255
@@ -27,7 +28,7 @@ struct job_t {
 struct job_t *start = NULL;
 int jid1 = 1;
 
-//Citations: https://github.com/yichuns/Shell-Lab/blob/master/tsh.c 
+//Citations: https://www.programiz.com/dsa/linked-list-operations
 void add_job(pid_t pid, int state, const char *cmdline) {
     struct job_t *jobb = malloc(sizeof(struct job_t));
     if (!jobb) {
@@ -39,37 +40,73 @@ void add_job(pid_t pid, int state, const char *cmdline) {
     jobb->jid = jid1++;
     jobb->state = state;
     int len = strlen(cmdline);
-    char command[CMDLINE_LEN];
-    if (len > 0) {
-        if (len >= CMDLINE_LEN) len = CMDLINE_LEN - 1;
-        strncpy(command, cmdline, len - 1);           
-    }   
-    strncpy(new_job->cmdline, command, CMDLINE_LEN - 1);
+    if (len >= CMDLINE_LEN) {
+        len = CMDLINE_LEN - 1;
+    }
+    strncpy(jobb->cmdline, cmdline, len - 2);
+    jobb->cmdline[len] = '\0'; 
     jobb->next = start;
     start = jobb;
-
-    printf("[%d+] running in background           %s \n", new_job->jid, new_job->cmdline);
+    if(state == 1){
+        printf("[%d+] running           %s \n", jobb->jid, jobb->cmdline);
+    }
 }
 
 void list_jobs() {
     struct job_t *curr = start;
     while (curr) {
-        if (curr->next == NULL) {
-            printf("[%d]  +     running in background           %s \n", curr->jid, curr->cmdline);
-            curr = curr->next;
-        }
-        else if (curr->next->next == NULL) {
-            printf("[%d]  -     running in background           %s \n", curr->jid, curr->cmdline);
-            curr = curr->next;
-        }
-        else {
-            printf("[%d]        running in background           %s \n", curr->jid, curr->cmdline);
-            curr = curr->next;
+        if(curr->state == 1){
+            if (curr->next == NULL) {
+                printf("[%d]  +     running         %s \n", curr->jid, curr->cmdline);
+                curr = curr->next;
+            }
+            else if (curr->next->next == NULL) {
+                printf("[%d]  -     running         %s \n", curr->jid, curr->cmdline);
+                curr = curr->next;
+            }
+            else {
+                printf("[%d]        running         %s \n", curr->jid, curr->cmdline);
+                curr = curr->next;
+            }
+        } else {
+            return;
         }
     }
 }
 
+void child_handler(int signum) {
+    int status;
+    //Citation: https://gist.github.com/udaya1223/10730660
+    pid_t p;
+    while((p = waitpid(-1, &status, WNOHANG)) > 0){
+        struct job_t *curr = start;
+        struct job_t *prev = NULL;
+        while (curr) {
+            if (curr->pid == p) {
+                printf("\n[%d] Done           %s\n", curr->jid, curr->cmdline);
+                if (prev) {
+                    prev->next = curr->next;
+                } else {
+                    start = curr->next;
+                }
+                free(curr);
+                break;
+            }
+            prev = curr;
+            curr = curr->next;
+        }
+        printf("icsh $ ");
+        fflush(stdout);
+    }
+}
 
+void sigchld_set(){
+    struct sigaction sa_chld;
+    sa_chld.sa_handler = child_handler;
+    sa_chld.sa_flags = SA_RESTART;
+    sigemptyset(&sa_chld.sa_mask);
+    sigaction(SIGCHLD, &sa_chld, NULL);
+}
 
 void handle1(int signum) {
     printf("\n");
@@ -125,49 +162,6 @@ void actions(char *buffer, char *oldbuffer) {
         return;
     }
 
-    if (strstr(buffer, ">") != NULL) {
-        int i = 0;
-        char delimiter[] = ">";
-        char *tokens[2];
-        char *token1 = strtok(buffer, delimiter);
-        while (token1 != NULL && i < 2) {
-            tokens[i++] = token1;
-            token1 = strtok(NULL, delimiter);
-        }
-        tokens[i] = NULL;
-
-        int saved_stdout = dup(1);
-        int file_desc = open(tokens[1], O_APPEND | O_CREAT | O_WRONLY, 0666);
-        dup2(file_desc, 1);
-        actions(tokens[0], buffer);
-        fflush(stdout);
-        dup2(saved_stdout, 1);
-        close(saved_stdout);
-        close(file_desc);
-        return;
-    }
-
-    if (strstr(buffer, "<") != NULL) {
-        int i = 0;
-        char delimiter[] = "<";
-        char *tokens[2];
-        char *token1 = strtok(buffer, delimiter);
-        while (token1 != NULL && i < 2) {
-            tokens[i++] = token1;
-            token1 = strtok(NULL, delimiter);
-        }
-        char *cmd = tokens[0];
-        char *filename = tokens[1];
-        int saved_stdin = dup(0);
-        int file_desc = open(filename, O_RDONLY);
-        dup2(file_desc, 0);
-        close(file_desc);
-        actions(cmd, buffer);
-        dup2(saved_stdin, 0);
-        close(saved_stdin);
-        return;
-    }
-
     if (strstr(buffer, "exit ") == buffer) {
         char *newbuf = malloc(strlen(buffer) + 1);
         if (!newbuf) {
@@ -185,8 +179,45 @@ void actions(char *buffer, char *oldbuffer) {
         printf("Bye\n");
         exit(result);
     }
+    if (strstr(buffer, "fg %") == buffer) {
+        int job = atoi(buffer + 4);
+        struct job_t *curr = start;
+        while (curr) {
+            if (curr->jid == job) {
+                tcsetpgrp(STDIN_FILENO, curr->pid);
+                kill(-curr->pid, SIGCONT); 
+                int status;
+                waitpid(-curr->pid, &status, WUNTRACED);
+                tcsetpgrp(STDIN_FILENO, getpgrp());
+                break;
+            }
+            curr = curr->next;
+        }
+        return;
+    }
+
+    if (strstr(buffer, "bg %") == buffer) {
+        int job = atoi(buffer + 4);
+        struct job_t *curr = start;
+        while (curr) {
+            if (curr->jid == job) {
+                printf("[%d+]        running         %s \n", curr->jid, curr->cmdline);
+                kill(-curr->pid, SIGCONT);
+                curr->state = 1;
+                break;
+            }
+            curr = curr->next;
+        }
+
+        return;
+    }
+
+
+    //Citation: https://github.com/yichuns/Shell-Lab/blob/master/tsh.c
     char tempbuffer[CMDLINE_LEN];
     strncpy(tempbuffer, buffer, CMDLINE_LEN - 1);
+    tempbuffer[CMDLINE_LEN - 1] = '\0';
+
     int status;
     pid_t pid = fork();
     char delimiter[] = " ";
@@ -204,7 +235,7 @@ void actions(char *buffer, char *oldbuffer) {
         }
         token = strtok(NULL, delimiter);
     }
-    tokens[i] = NULL;  
+    tokens[i] = NULL;
 
     if (pid < 0) {
         perror("fork failed");
@@ -212,19 +243,24 @@ void actions(char *buffer, char *oldbuffer) {
     }
 
     if (pid == 0) {
+        setpgid(0, 0);  
+        if (!background_pid) {
+            tcsetpgrp(STDIN_FILENO, getpid());
+        }
         execvp(tokens[0], tokens);
         perror("execvp failed");
         exit(1);
     } else {
+        setpgid(pid, pid);  
         if (!background_pid) {
-            waitpid(pid, &status, WUNTRACED);
+            tcsetpgrp(STDIN_FILENO, pid);
+            foreground_pid = pid;
+            waitpid(-pid, &status, WUNTRACED);
+            tcsetpgrp(STDIN_FILENO, getpgrp());
         } else {
-            printf("Started background job with PID %d\n", pid);
             add_job(pid, 1, tempbuffer);
         }
     }
-
-
     strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
 }
 
@@ -233,8 +269,11 @@ int main(int argc, char *argv[]) {
     char oldbuffer[MAX_CMD_BUFFER];
     oldbuffer[0] = '\0';
 
+    sigchld_set();
     sigint_set();
     sigtstp_set();
+    signal(SIGTTOU, SIG_IGN);
+    signal(SIGTTIN, SIG_IGN);
     
     if (argc == 2) {
         FILE *f = fopen(argv[1], "r");
@@ -260,9 +299,56 @@ int main(int argc, char *argv[]) {
             break;
         }
 
+        if (strstr(buffer, ">") != NULL) {
+            buffer[strcspn(buffer, "\n")] = '\0';
+            int i = 0;
+            char delimiter[] = ">";
+            char *tokens[2];
+            char *token1 = strtok(buffer, delimiter);
+            while (token1 != NULL && i < 2) {
+                tokens[i++] = token1;
+                token1 = strtok(NULL, delimiter);
+            }
+            tokens[i] = NULL;
+
+            int saved_stdout = dup(1);
+            int file_desc = open(tokens[1], O_APPEND | O_CREAT | O_WRONLY, 0666);
+            dup2(file_desc, 1);
+            actions(tokens[0], buffer);
+            fflush(stdout);
+            dup2(saved_stdout, 1);
+            close(saved_stdout);
+            close(file_desc);
+            continue;
+        }
+
+        if (strstr(buffer, "<") != NULL) {
+            buffer[strcspn(buffer, "\n")] = '\0';
+            int i = 0;
+            char delimiter[] = "<";
+            char *tokens[2];
+            char *token1 = strtok(buffer, delimiter);
+            while (token1 != NULL && i < 2) {
+                tokens[i++] = token1;
+                token1 = strtok(NULL, delimiter);
+            }
+            char *cmd = tokens[0];
+            char *filename = tokens[1];
+            while (*filename == ' ' || *filename == '\t') {
+                filename++;
+            }
+            int saved_stdin = dup(0);
+            int file_desc = open(filename, O_RDONLY);
+            dup2(file_desc, 0);
+            close(file_desc);
+            actions(cmd, buffer);
+            dup2(saved_stdin, 0);
+            close(saved_stdin);
+            continue;
+        }
+
         actions(buffer, oldbuffer);
     }
-
     return 0;
 }
 
