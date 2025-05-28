@@ -27,6 +27,7 @@ struct job_t {
 
 struct job_t *start = NULL;
 int jid1 = 1;
+int excode = 0;
 
 //Citations: https://www.programiz.com/dsa/linked-list-operations
 void add_job(pid_t pid, int state, const char *cmdline) {
@@ -43,7 +44,7 @@ void add_job(pid_t pid, int state, const char *cmdline) {
     if (len >= CMDLINE_LEN) {
         len = CMDLINE_LEN - 1;
     }
-    strncpy(jobb->cmdline, cmdline, len - 2);
+    strncpy(jobb->cmdline, cmdline, len - 1);
     jobb->cmdline[len] = '\0'; 
     jobb->next = start;
     start = jobb;
@@ -109,6 +110,7 @@ void sigchld_set(){
 }
 
 void handle1(int signum) {
+    kill(child_id, 9)
     printf("\n");
     printf("icsh $ ");
  }
@@ -147,6 +149,11 @@ void actions(char *buffer, char *oldbuffer) {
     }
 
     if (strstr(buffer, "echo ") == buffer) {
+        if (strcmp(buffer, "echo $") == 0) {
+            printf("%d\n", excode);
+            strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
+            return;
+        }
         char *newbuf = malloc(strlen(buffer) - 5 + 1);
         if (!newbuf) return;
         strncpy(newbuf, &buffer[5], strlen(buffer) - 5);
@@ -154,6 +161,7 @@ void actions(char *buffer, char *oldbuffer) {
         printf("%s\n", newbuf);
         free(newbuf);
         strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
+        excode = 0;
         return;
     }
 
@@ -184,7 +192,10 @@ void actions(char *buffer, char *oldbuffer) {
         struct job_t *curr = start;
         while (curr) {
             if (curr->jid == job) {
+                //Citation: https://chatgpt.com/share/68367ad1-b9cc-800f-9cd8-36747b025a83 
+                //Citation: https://stackoverflow.com/questions/5341220/how-do-i-get-tcsetpgrp-to-work-in-c
                 tcsetpgrp(STDIN_FILENO, curr->pid);
+                //Citation: https://stackoverflow.com/questions/5785988/how-to-bring-a-child-process-running-in-the-background-to-the-foreground
                 kill(-curr->pid, SIGCONT); 
                 int status;
                 waitpid(-curr->pid, &status, WUNTRACED);
@@ -243,6 +254,8 @@ void actions(char *buffer, char *oldbuffer) {
     }
 
     if (pid == 0) {
+        //Citation: https://stackoverflow.com/questions/5341220/how-do-i-get-tcsetpgrp-to-work-in-c
+        //Citation: https://emersion.fr/blog/2019/job-control/
         setpgid(0, 0);  
         if (!background_pid) {
             tcsetpgrp(STDIN_FILENO, getpid());
@@ -251,11 +264,18 @@ void actions(char *buffer, char *oldbuffer) {
         perror("execvp failed");
         exit(1);
     } else {
+        //Citation: https://stackoverflow.com/questions/5341220/how-do-i-get-tcsetpgrp-to-work-in-c
+        //Citation: https://emersion.fr/blog/2019/job-control/
         setpgid(pid, pid);  
         if (!background_pid) {
             tcsetpgrp(STDIN_FILENO, pid);
             foreground_pid = pid;
             waitpid(-pid, &status, WUNTRACED);
+            if (WIFEXITED(status)) {
+                excode = WEXITSTATUS(status);
+            } else {
+                excode = 1;
+            }
             tcsetpgrp(STDIN_FILENO, getpgrp());
         } else {
             add_job(pid, 1, tempbuffer);
