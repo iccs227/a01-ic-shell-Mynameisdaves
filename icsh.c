@@ -110,7 +110,6 @@ void sigchld_set(){
 }
 
 void handle1(int signum) {
-    kill(child_id, 9)
     printf("\n");
     printf("icsh $ ");
  }
@@ -120,6 +119,8 @@ void handle1(int signum) {
     printf("icsh $ ");
  }
 
+// Citation: https://stackoverflow.com/a/40116030/17123296
+// Citation: https://pubs.opengroup.org/onlinepubs/007904875/functions/sigaction.html 
 void sigtstp_set(void) {
     struct sigaction sa;
     sa.sa_handler = handle1;
