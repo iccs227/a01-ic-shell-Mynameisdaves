@@ -110,13 +110,17 @@ void sigchld_set(){
 }
 
 void handle1(int signum) {
-    printf("\n");
-    printf("icsh $ ");
+    if (foreground_pid > 0) {
+        kill(-foreground_pid, SIGTSTP);  
+    }
+    write(STDOUT_FILENO, "\nicsh $ ", 8);
  }
  
  void handle2(int signum) {
-    printf("\n");
-    printf("icsh $ ");
+    if (foreground_pid > 0) {
+        kill(-foreground_pid, SIGINT);  
+    }
+    write(STDOUT_FILENO, "\nicsh $ ", 8);
  }
 
 // Citation: https://stackoverflow.com/a/40116030/17123296
@@ -193,6 +197,7 @@ void actions(char *buffer, char *oldbuffer) {
         struct job_t *curr = start;
         while (curr) {
             if (curr->jid == job) {
+                curr->state = 0;
                 //Citation: https://chatgpt.com/share/68367ad1-b9cc-800f-9cd8-36747b025a83 
                 //Citation: https://stackoverflow.com/questions/5341220/how-do-i-get-tcsetpgrp-to-work-in-c
                 tcsetpgrp(STDIN_FILENO, curr->pid);
@@ -272,7 +277,11 @@ void actions(char *buffer, char *oldbuffer) {
             tcsetpgrp(STDIN_FILENO, pid);
             foreground_pid = pid;
             waitpid(-pid, &status, WUNTRACED);
-            if (WIFEXITED(status)) {
+            if (WIFSTOPPED(status)) {
+                printf("\n");
+            } else if (WIFSIGNALED(status)) {
+                printf("\n");
+            } else if (WIFEXITED(status)) {
                 excode = WEXITSTATUS(status);
             } else {
                 excode = 1;
@@ -355,9 +364,6 @@ int main(int argc, char *argv[]) {
             }
             char *cmd = tokens[0];
             char *filename = tokens[1];
-            while (*filename == ' ' || *filename == '\t') {
-                filename++;
-            }
             int saved_stdin = dup(0);
             int file_desc = open(filename, O_RDONLY);
             dup2(file_desc, 0);
