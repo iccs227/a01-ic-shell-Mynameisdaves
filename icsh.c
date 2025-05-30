@@ -21,6 +21,7 @@ struct job_t {
     pid_t pid;
     int jid;
     int state;
+    int wifstop;
     char cmdline[CMDLINE_LEN];
     struct job_t *next;  
 };
@@ -30,13 +31,13 @@ int jid1 = 1;
 int excode = 0;
 
 //Citations: https://www.programiz.com/dsa/linked-list-operations
-void add_job(pid_t pid, int state, const char *cmdline) {
+void add_job(pid_t pid, int state, const char *cmdline, int wifstop) {
     struct job_t *jobb = malloc(sizeof(struct job_t));
     if (!jobb) {
         printf("cant");
         return;
     }
-
+    jobb->wifstop = wifstop;
     jobb->pid = pid;
     jobb->jid = jid1++;
     jobb->state = state;
@@ -44,12 +45,12 @@ void add_job(pid_t pid, int state, const char *cmdline) {
     if (len >= CMDLINE_LEN) {
         len = CMDLINE_LEN - 1;
     }
-    strncpy(jobb->cmdline, cmdline, len - 1);
+    strncpy(jobb->cmdline, cmdline, len);
     jobb->cmdline[len] = '\0'; 
     jobb->next = start;
     start = jobb;
-    if(state == 1){
-        printf("[%d+] running           %s \n", jobb->jid, jobb->cmdline);
+    if(wifstop == 0){
+        printf("[%d+]        running         %s \n", jobb->jid, jobb->cmdline);
     }
 }
 
@@ -58,16 +59,31 @@ void list_jobs() {
     while (curr) {
         if(curr->state == 1){
             if (curr->next == NULL) {
-                printf("[%d]  +     running         %s \n", curr->jid, curr->cmdline);
-                curr = curr->next;
+                if(curr->wifstop == 0){
+                    printf("[%d]  +     running         %s \n", curr->jid, curr->cmdline);
+                    curr = curr->next;
+                } else {
+                    printf("[%d]  +     suspended       %s \n", curr->jid, curr->cmdline);
+                    curr = curr->next;
+                }
             }
             else if (curr->next->next == NULL) {
-                printf("[%d]  -     running         %s \n", curr->jid, curr->cmdline);
-                curr = curr->next;
+                if(curr->wifstop == 0){
+                    printf("[%d]  -     running         %s \n", curr->jid, curr->cmdline);
+                    curr = curr->next;
+                } else {
+                    printf("[%d]  -     suspended       %s \n", curr->jid, curr->cmdline);
+                    curr = curr->next;
+                }
             }
             else {
-                printf("[%d]        running         %s \n", curr->jid, curr->cmdline);
-                curr = curr->next;
+                if(curr->wifstop == 0){
+                    printf("[%d]        running         %s \n", curr->jid, curr->cmdline);
+                    curr = curr->next;
+                } else {
+                    printf("[%d]        suspended       %s \n", curr->jid, curr->cmdline);
+                    curr = curr->next;
+                }
             }
         } else {
             return;
@@ -110,16 +126,11 @@ void sigchld_set(){
 }
 
 void handle1(int signum) {
-    if (foreground_pid > 0) {
-        kill(-foreground_pid, SIGTSTP);  
-    }
     write(STDOUT_FILENO, "\nicsh $ ", 8);
- }
+}
+
  
  void handle2(int signum) {
-    if (foreground_pid > 0) {
-        kill(-foreground_pid, SIGINT);  
-    }
     write(STDOUT_FILENO, "\nicsh $ ", 8);
  }
 
@@ -150,11 +161,12 @@ void actions(char *buffer, char *oldbuffer) {
         }
         printf("\n%s\n", oldbuffer);
         actions(oldbuffer, oldbuffer);
+        excode = 0;
         return;
     }
 
     if (strstr(buffer, "echo ") == buffer) {
-        if (strcmp(buffer, "echo $") == 0) {
+        if (strcmp(buffer, "echo $?") == 0) {
             printf("%d\n", excode);
             strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
             return;
@@ -172,6 +184,7 @@ void actions(char *buffer, char *oldbuffer) {
 
     if (strstr(buffer, "jobs") == buffer) {
         list_jobs();
+        excode = 0;
         return;
     }
 
@@ -197,7 +210,6 @@ void actions(char *buffer, char *oldbuffer) {
         struct job_t *curr = start;
         while (curr) {
             if (curr->jid == job) {
-                curr->state = 0;
                 //Citation: https://chatgpt.com/share/68367ad1-b9cc-800f-9cd8-36747b025a83 
                 //Citation: https://stackoverflow.com/questions/5341220/how-do-i-get-tcsetpgrp-to-work-in-c
                 tcsetpgrp(STDIN_FILENO, curr->pid);
@@ -206,10 +218,18 @@ void actions(char *buffer, char *oldbuffer) {
                 int status;
                 waitpid(-curr->pid, &status, WUNTRACED);
                 tcsetpgrp(STDIN_FILENO, getpgrp());
-                break;
+                if(curr->jid <= jid1 && WIFSTOPPED(status)){
+                    printf("\n[%d]        suspended       %s \n", curr->jid, curr->cmdline);
+                    curr->state = 1;
+                    curr->wifstop = 0;
+                } else {
+                    printf("[%d]        Completed       %s \n", curr->jid, curr->cmdline);
+                    break;
+                }
             }
             curr = curr->next;
         }
+        excode = 0;
         return;
     }
 
@@ -218,6 +238,7 @@ void actions(char *buffer, char *oldbuffer) {
         struct job_t *curr = start;
         while (curr) {
             if (curr->jid == job) {
+                curr->wifstop = 0;
                 printf("[%d+]        running         %s \n", curr->jid, curr->cmdline);
                 kill(-curr->pid, SIGCONT);
                 curr->state = 1;
@@ -225,7 +246,7 @@ void actions(char *buffer, char *oldbuffer) {
             }
             curr = curr->next;
         }
-
+        excode = 0;
         return;
     }
 
@@ -262,9 +283,10 @@ void actions(char *buffer, char *oldbuffer) {
     if (pid == 0) {
         //Citation: https://stackoverflow.com/questions/5341220/how-do-i-get-tcsetpgrp-to-work-in-c
         //Citation: https://emersion.fr/blog/2019/job-control/
-        setpgid(0, 0);  
+        pid_t cpid = getpid();
+        setpgid(cpid, cpid);  
         if (!background_pid) {
-            tcsetpgrp(STDIN_FILENO, getpid());
+            tcsetpgrp(STDIN_FILENO, cpid);  
         }
         execvp(tokens[0], tokens);
         perror("execvp failed");
@@ -277,8 +299,10 @@ void actions(char *buffer, char *oldbuffer) {
             tcsetpgrp(STDIN_FILENO, pid);
             foreground_pid = pid;
             waitpid(-pid, &status, WUNTRACED);
+            foreground_pid = -1;
             if (WIFSTOPPED(status)) {
-                printf("\n");
+                add_job(pid, 1, tempbuffer, 1);
+                printf("\n[%d]+    susp    %s\n", jid1 - 1, tempbuffer);
             } else if (WIFSIGNALED(status)) {
                 printf("\n");
             } else if (WIFEXITED(status)) {
@@ -288,7 +312,7 @@ void actions(char *buffer, char *oldbuffer) {
             }
             tcsetpgrp(STDIN_FILENO, getpgrp());
         } else {
-            add_job(pid, 1, tempbuffer);
+            add_job(pid, 1, tempbuffer, 0);
         }
     }
     strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
@@ -349,6 +373,7 @@ int main(int argc, char *argv[]) {
             dup2(saved_stdout, 1);
             close(saved_stdout);
             close(file_desc);
+            excode = 0;
             continue;
         }
 
@@ -371,12 +396,13 @@ int main(int argc, char *argv[]) {
             actions(cmd, buffer);
             dup2(saved_stdin, 0);
             close(saved_stdin);
+            excode = 0;
             continue;
         }
 
         actions(buffer, oldbuffer);
     }
-    return 0;
+    return excode;
 }
 
  
