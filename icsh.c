@@ -294,6 +294,24 @@ void actions(char *buffer, char *oldbuffer) {
         return;
     }
 
+    if (strcmp(buffer, "help") == 0) {
+        printf("Welcome to Dave's icsh!\n\n"
+            "Controls and Commands:\n\n"
+            "1. Run commands normally by typing them and pressing Enter.\n"
+            "2. Use & at the end of a command to run it in the background.\n"
+            "3. Use jobs to list all background and suspended jobs.\n"
+            "4. Use fg <job_id> to bring a background or suspended job to the foreground.\n"
+            "5. Use bg <job_id> to resume a suspended job in the background.\n"
+            "6. Press Ctrl+C to terminate the current foreground job.\n"
+            "7. Press Ctrl+Z to suspend the current foreground job.\n"
+            "8. Use !! to repeat the last command.\n"
+            "9. Use < and > to redirect input and output of commands.\n"
+            "10. Use exit to quit the shell.\n\n"
+            "Enjoy!\n");
+        excode = 0;
+        return;
+    }
+
     //Citation: https://github.com/yichuns/Shell-Lab/blob/master/tsh.c
     char jobbuffer[CMDLINE_LEN];
     strncpy(jobbuffer, buffer, CMDLINE_LEN - 1);
