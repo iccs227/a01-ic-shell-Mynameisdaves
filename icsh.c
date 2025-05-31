@@ -10,13 +10,15 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <errno.h> 
+#include <errno.h>
+#include <sys/ioctl.h> 
 
 #define MAX_CMD_BUFFER 255
 #define CMDLINE_LEN 255
 
 //Citations: https://github.com/yichuns/Shell-Lab/blob/master/tsh.c 
 pid_t foreground_pid = -1; 
+int fg = 0;
 struct job_t {
     pid_t pid;
     int jid;
@@ -100,7 +102,8 @@ void child_handler(int signum) {
         struct job_t *prev = NULL;
         while (curr) {
             if (curr->pid == p) {
-                printf("\n[%d] Done           %s\n", curr->jid, curr->cmdline);
+                printf("\n[%d]        Done           %s\n", curr->jid, curr->cmdline);
+                printf("If this command interrupted when you were typing into the shell, please copy and paste your buffer again or press enter if your buffer was done\n");
                 if (prev) {
                     prev->next = curr->next;
                 } else {
@@ -112,8 +115,33 @@ void child_handler(int signum) {
             prev = curr;
             curr = curr->next;
         }
-        printf("icsh $ ");
+        if(fg == 0){
+            write(STDOUT_FILENO, "icsh $ ", 7);
+        } else {
+            //Citation: https://chatgpt.com/share/683ad879-ee8c-800f-9d5f-edb911326c62
+            char enter = '\n';
+            ioctl(STDIN_FILENO, TIOCSTI, &enter);
+        }
         fflush(stdout);
+    }
+}
+
+void remove_job(pid_t p){
+    //Citation: https://gist.github.com/udaya1223/10730660
+    struct job_t *curr = start;
+    struct job_t *prev = NULL;
+    while (curr) {
+        if (curr->pid == p) {
+            if (prev) {
+                prev->next = curr->next;
+            } else {
+                start = curr->next;
+            }
+            free(curr);
+            break;
+        }
+        prev = curr;
+        curr = curr->next;
     }
 }
 
@@ -129,10 +157,9 @@ void handle1(int signum) {
     write(STDOUT_FILENO, "\nicsh $ ", 8);
 }
 
- 
- void handle2(int signum) {
+void handle2(int signum) {
     write(STDOUT_FILENO, "\nicsh $ ", 8);
- }
+}
 
 // Citation: https://stackoverflow.com/a/40116030/17123296
 // Citation: https://pubs.opengroup.org/onlinepubs/007904875/functions/sigaction.html 
@@ -154,21 +181,34 @@ void sigint_set(void) {
 
 void actions(char *buffer, char *oldbuffer) {
     buffer[strcspn(buffer, "\n")] = '\0';
+    char tempbuffer[CMDLINE_LEN];
+    strncpy(tempbuffer, buffer, CMDLINE_LEN - 1);
+    tempbuffer[CMDLINE_LEN - 1] = '\0';
+
     if (strcmp(buffer, "!!") == 0) {
-        if (strlen(oldbuffer) == 0) {
-            printf("No previous command to repeat.\n");
+        char tempbuffer2[MAX_CMD_BUFFER];
+        strncpy(tempbuffer2, oldbuffer, MAX_CMD_BUFFER);
+        if (tempbuffer2[0] == '\0') {
+            printf("No previous command.\n");
+            excode = 1;
             return;
         }
-        printf("\n%s\n", oldbuffer);
-        actions(oldbuffer, oldbuffer);
-        excode = 0;
+        printf("%s\n", tempbuffer2);
+        if((strstr(tempbuffer2, ">") != NULL) || (strstr(tempbuffer2, "<") != NULL)){
+            redir(tempbuffer2);
+            return;
+        }
+        actions(tempbuffer2, oldbuffer);
         return;
+    }
+    if(buffer[0] != '\0'){
+        strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
     }
 
     if (strstr(buffer, "echo ") == buffer) {
+        strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
         if (strcmp(buffer, "echo $?") == 0) {
             printf("%d\n", excode);
-            strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
             return;
         }
         char *newbuf = malloc(strlen(buffer) - 5 + 1);
@@ -177,12 +217,12 @@ void actions(char *buffer, char *oldbuffer) {
         newbuf[strlen(buffer) - 5] = '\0';
         printf("%s\n", newbuf);
         free(newbuf);
-        strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
         excode = 0;
         return;
     }
 
     if (strstr(buffer, "jobs") == buffer) {
+        strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
         list_jobs();
         excode = 0;
         return;
@@ -205,7 +245,9 @@ void actions(char *buffer, char *oldbuffer) {
         printf("Bye\n");
         exit(result);
     }
+
     if (strstr(buffer, "fg %") == buffer) {
+        strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
         int job = atoi(buffer + 4);
         struct job_t *curr = start;
         while (curr) {
@@ -218,12 +260,13 @@ void actions(char *buffer, char *oldbuffer) {
                 int status;
                 waitpid(-curr->pid, &status, WUNTRACED);
                 tcsetpgrp(STDIN_FILENO, getpgrp());
-                if(curr->jid <= jid1 && WIFSTOPPED(status)){
+                if (curr->jid <= jid1 && WIFSTOPPED(status)) {
                     printf("\n[%d]        suspended       %s \n", curr->jid, curr->cmdline);
                     curr->state = 1;
                     curr->wifstop = 0;
                 } else {
-                    printf("[%d]        Completed       %s \n", curr->jid, curr->cmdline);
+                    printf("[%d]          Completed       %s \n", curr->jid, curr->cmdline);
+                    remove_job(curr->pid);
                     break;
                 }
             }
@@ -234,6 +277,7 @@ void actions(char *buffer, char *oldbuffer) {
     }
 
     if (strstr(buffer, "bg %") == buffer) {
+        strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
         int job = atoi(buffer + 4);
         struct job_t *curr = start;
         while (curr) {
@@ -250,11 +294,10 @@ void actions(char *buffer, char *oldbuffer) {
         return;
     }
 
-
     //Citation: https://github.com/yichuns/Shell-Lab/blob/master/tsh.c
-    char tempbuffer[CMDLINE_LEN];
-    strncpy(tempbuffer, buffer, CMDLINE_LEN - 1);
-    tempbuffer[CMDLINE_LEN - 1] = '\0';
+    char jobbuffer[CMDLINE_LEN];
+    strncpy(jobbuffer, buffer, CMDLINE_LEN - 1);
+    jobbuffer[CMDLINE_LEN - 1] = '\0';
 
     int status;
     pid_t pid = fork();
@@ -284,12 +327,12 @@ void actions(char *buffer, char *oldbuffer) {
         //Citation: https://stackoverflow.com/questions/5341220/how-do-i-get-tcsetpgrp-to-work-in-c
         //Citation: https://emersion.fr/blog/2019/job-control/
         pid_t cpid = getpid();
-        setpgid(cpid, cpid);  
+        setpgid(0, 0);
         if (!background_pid) {
-            tcsetpgrp(STDIN_FILENO, cpid);  
+            tcsetpgrp(STDIN_FILENO, cpid);
         }
         execvp(tokens[0], tokens);
-        perror("execvp failed");
+        fprintf(stderr, "Bad command\n");
         exit(1);
     } else {
         //Citation: https://stackoverflow.com/questions/5341220/how-do-i-get-tcsetpgrp-to-work-in-c
@@ -298,11 +341,14 @@ void actions(char *buffer, char *oldbuffer) {
         if (!background_pid) {
             tcsetpgrp(STDIN_FILENO, pid);
             foreground_pid = pid;
+            fg = 1;  
             waitpid(-pid, &status, WUNTRACED);
+            fg = 0;  
             foreground_pid = -1;
+            tcsetpgrp(STDIN_FILENO, getpgrp());
             if (WIFSTOPPED(status)) {
-                add_job(pid, 1, tempbuffer, 1);
-                printf("\n[%d]+    susp    %s\n", jid1 - 1, tempbuffer);
+                add_job(pid, 1, jobbuffer, 1);
+                printf("\n[%d]        suspended       %s \n", jid1 - 1, jobbuffer);
             } else if (WIFSIGNALED(status)) {
                 printf("\n");
             } else if (WIFEXITED(status)) {
@@ -310,12 +356,60 @@ void actions(char *buffer, char *oldbuffer) {
             } else {
                 excode = 1;
             }
-            tcsetpgrp(STDIN_FILENO, getpgrp());
         } else {
-            add_job(pid, 1, tempbuffer, 0);
+            add_job(pid, 1, jobbuffer, 0);
         }
     }
-    strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
+}
+void redir(char* buffer){
+    if (strstr(buffer, ">") != NULL) {
+        buffer[strcspn(buffer, "\n")] = '\0';
+        int i = 0;
+        char delimiter[] = ">";
+        char *tokens[2];
+        char *token1 = strtok(buffer, delimiter);
+        while (token1 != NULL && i < 2) {
+            tokens[i++] = token1;
+            token1 = strtok(NULL, delimiter);
+        }
+        tokens[i] = NULL;
+        int saved_stdout = dup(1);
+        int file_desc = open(tokens[1], O_APPEND | O_CREAT | O_WRONLY, 0666);
+        dup2(file_desc, 1);
+        actions(tokens[0], buffer);
+        fflush(stdout);
+        dup2(saved_stdout, 1);
+        close(saved_stdout);
+        close(file_desc);
+        excode = 0;
+    }
+
+    if (strstr(buffer, "<") != NULL) {
+        buffer[strcspn(buffer, "\n")] = '\0';
+        int i = 0;
+        char delimiter[] = "<";
+        char *tokens[2];
+        char *token1 = strtok(buffer, delimiter);
+        while (token1 != NULL && i < 2) {
+            tokens[i++] = token1;
+            token1 = strtok(NULL, delimiter);
+        }
+        char *cmd = tokens[0];
+        char *filename = tokens[1];
+        int saved_stdin = dup(0);
+        int file_desc = open(filename, O_RDONLY);
+        if (file_desc < 0) {
+            printf("No file\n");
+        }
+        else {
+            dup2(file_desc, 0);
+            close(file_desc);
+            actions(cmd, buffer);
+            dup2(saved_stdin, 0);
+            close(saved_stdin);
+            excode = 0;
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -354,6 +448,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (strstr(buffer, ">") != NULL) {
+            strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
             buffer[strcspn(buffer, "\n")] = '\0';
             int i = 0;
             char delimiter[] = ">";
@@ -378,6 +473,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (strstr(buffer, "<") != NULL) {
+            strncpy(oldbuffer, buffer, MAX_CMD_BUFFER);
             buffer[strcspn(buffer, "\n")] = '\0';
             int i = 0;
             char delimiter[] = "<";
@@ -391,16 +487,24 @@ int main(int argc, char *argv[]) {
             char *filename = tokens[1];
             int saved_stdin = dup(0);
             int file_desc = open(filename, O_RDONLY);
-            dup2(file_desc, 0);
-            close(file_desc);
-            actions(cmd, buffer);
-            dup2(saved_stdin, 0);
-            close(saved_stdin);
-            excode = 0;
+            if (file_desc < 0) {
+                printf("No file\n");
+            }
+            else {
+                dup2(file_desc, 0);
+                close(file_desc);
+                actions(cmd, buffer);
+                dup2(saved_stdin, 0);
+                close(saved_stdin);
+                excode = 0;
+            }
             continue;
         }
 
         actions(buffer, oldbuffer);
+    }
+    while (start != NULL) {
+        remove_job(start->pid);
     }
     return excode;
 }
