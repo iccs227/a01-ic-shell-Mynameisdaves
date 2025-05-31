@@ -1,6 +1,6 @@
-CC=gcc
-CFLAGS=-Wall -g 
-BINARY=icsh
+CC = gcc
+CFLAGS = -g -w
+BINARY = icsh
 
 all: icsh
 
