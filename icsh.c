@@ -521,9 +521,13 @@ int main(int argc, char *argv[]) {
 
         actions(buffer, oldbuffer);
     }
-    while (start != NULL) {
-        remove_job(start->pid);
+    struct job_t *curr = start;
+    while (curr != NULL) {
+        struct job_t *next = curr->next;
+        free(curr);
+        curr = next;
     }
+    start = NULL;
     return excode;
 }
 
